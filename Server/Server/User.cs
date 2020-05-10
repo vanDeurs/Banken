@@ -15,9 +15,9 @@ namespace Server
         [DataMember]
         string name;
         [DataMember]
-        int socialSecurityNumber;
+        string socialSecurityNumber;
 
-        public User (string name, int socialSecurityNumber)
+        public User (string name, string socialSecurityNumber)
         {
             this.name = name;
             this.socialSecurityNumber = socialSecurityNumber;
@@ -29,13 +29,13 @@ namespace Server
             get { return accounts; }
         }
 
-        public Account this[string name] => FindAccountByName(name);
+        public Account this[string number] => FindAccountByNumber(number);
 
-        private Account FindAccountByName(string name)
+        private Account FindAccountByNumber(string number)
         {
             for (int j = 0; j < accounts.Count; j++)
             {
-                if (accounts[j].AccountName == name)
+                if (accounts[j].Number == int.Parse(number))
                 {
                     return accounts[j];
                 }
@@ -50,7 +50,7 @@ namespace Server
                 return this.name;
             }
         }
-        public int SocialSecurityNumber
+        public string SocialSecurityNumber
         {
             get
             {

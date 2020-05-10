@@ -14,19 +14,41 @@ namespace Server
         [DataMember]
         protected Balance balance;
         [DataMember]
-        protected int accountNumber;
+        protected int number;
         [DataMember]
-        protected string accountName;
+        protected string name;
 
         public Account (string accountName)
         {
-            this.balance = new Balance(0, NumberFormatInfo.CurrentInfo.CurrencySymbol);
-            this.accountNumber = CreateAccountNumber();
-            this.accountName = accountName;
+            this.balance = new Balance(100, NumberFormatInfo.CurrentInfo.CurrencySymbol);
+            this.number = CreateAccountNumber();
+            this.name = accountName;
         }
-        public string AccountName
+        public string Name
         {
-            get { return this.accountName; }
+            get { return this.name; }
+        }
+        public Balance Balance
+        {
+            get { return this.balance; }
+        }
+        public int Number
+        {
+            get { return this.number; }
+        }
+
+        public void AddFunds(decimal funds)
+        {
+            this.balance.amount += funds;
+        }
+
+        public void TakeOutFunds(decimal funds)
+        {
+            if ((this.balance.amount -= funds) < 0)
+            {
+                throw new Exception("This take out would overdraw the account. STOP.");
+            }
+            this.balance.amount -= funds;
         }
 
         public bool TransferFunds(int accountNumber, decimal funds)

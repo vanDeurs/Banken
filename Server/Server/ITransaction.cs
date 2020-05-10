@@ -8,6 +8,7 @@ namespace Server
 {
     interface ITransaction
     {
-        bool TransferFunds(int accountNumber, decimal funds);
+        void TakeOutFunds(decimal funds);
+        void AddFunds(decimal funds);
     }
 }

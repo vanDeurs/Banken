@@ -81,26 +81,111 @@ namespace Client
             // Tell server to return accounts
             NetworkStream tcpStream = client.GetStream();
 
-            string clientMessage = TcpWrite(tcpStream, "4");
+            string message = "4" + loggedInSocialSecurityNumber;
 
+            string clientMessage = TcpWrite(tcpStream, message);
+
+            Console.WriteLine("Klient: {0}", clientMessage);
+
+            if (clientMessage != "Servern har tagit emot din förfrågan.") return;
+
+            try
+            {
+                string messageFromServer = TcpRead(tcpStream);
+                Console.WriteLine("Konton");
+                Console.WriteLine("");
+                Console.WriteLine(messageFromServer);
+            } catch (Exception err)
+            {
+                Console.WriteLine("Error: {0}", err);
+                return;
+            }
+            PresentAccountOptions(client);
+
+            int option = int.Parse(Console.ReadLine());
+
+            switch (option)
+            {
+                case 1:
+                    InsertMoney(client);
+                    break;
+                case 2:
+                    TakeOutMoney(client);
+                    break;
+                case 3:
+                    DeleteAccount(client);
+                    break;
+                case 4:
+                    break;
+                default:
+                    Console.WriteLine("Kunde inte läsa ditt val. Försök igen.");
+                    Console.WriteLine("");
+                    break;
+            }
+
+        }
+
+        private static void DeleteAccount(TcpClient client)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static void TakeOutMoney(TcpClient client)
+        {
+            int number;
+            decimal balance;
+
+            while (true)
+            {
+                Console.Write("Kontonummer att ta ut pengar från: ");
+                bool numberSuccess = int.TryParse(Console.ReadLine(), out number);
+
+                Console.Write("Summa att ta ut: ");
+                bool balanceSuccess = decimal.TryParse(Console.ReadLine(), out balance);
+
+                if (!numberSuccess || !balanceSuccess)
+                {
+                    Console.WriteLine("Nånting gick fel med din input. Försök igen.");
+                    continue;
+                } else
+                {
+                    break;
+                }
+            }
+
+
+            NetworkStream tcpStream = client.GetStream();
+
+            string dataToSend = "6" + loggedInSocialSecurityNumber + "|" + number + "|" + balance;
+
+            string clientMessage = TcpWrite(tcpStream, dataToSend);
             Console.WriteLine("Klient: {0}", clientMessage);
 
             if (clientMessage != "Servern har tagit emot din förfrågan.") return;
 
             string messageFromServer = TcpRead(tcpStream);
 
-            Console.WriteLine("Meddelande från server {0}", messageFromServer);
+            if (messageFromServer == "Successful_Transfer")
+            {
+                Console.WriteLine("{0} har tagits ut från konto med nummer {1}", balance, number);
+            }
+            else
+            {
+                Console.WriteLine("Uttaget misslyckades.");
+            }
+        }
 
-            PresentAccountOptions(client);
+        private static void InsertMoney(TcpClient client)
+        {
+            throw new NotImplementedException();
         }
 
         static void PresentAccountOptions (TcpClient client)
         {
             Console.WriteLine("1. Sätt in pengar");
             Console.WriteLine("2. Ta ut pengar");
-            Console.WriteLine("3. Flytta pengar mellan konton");
-            Console.WriteLine("4. Avsluta konto");
-            Console.WriteLine("5. Gå tillbaka");
+            Console.WriteLine("3. Avsluta konto");
+            Console.WriteLine("4. Gå tillbaka");
         }
 
         static void Logout (TcpClient client)
@@ -280,6 +365,9 @@ namespace Client
             if (clientMessage != "Servern har tagit emot din förfrågan.") return;
 
             string serverMessage = TcpRead(tcpStream);
+            Console.WriteLine("Server: {0}", serverMessage);
+
+
 
             // Dela upp strängen efter en breakpoint så att vi kan
             // få ut användarna.

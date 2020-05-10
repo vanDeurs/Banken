@@ -89,7 +89,19 @@ namespace Server
                             ReadUsers(xmlDocument, socket);
                             break;
                         case 4:
-                            ReadAccounts(xmlDocument, socket);
+                            ReadAccounts(message, xmlDocument, socket);
+                            break;
+                        case 5:
+                            break;
+                        case 6:
+                            Boolean tookOutMoney = TakeOutMoney(message, xmlDocument);
+                            if (tookOutMoney)
+                            {
+                                ReturnToClient(socket, "Successful_Transfer");
+                            } else
+                            {
+                                ReturnToClient(socket, "Failed_Transfer");
+                            }
                             break;
                     }
                 }
@@ -101,31 +113,134 @@ namespace Server
             }
         }
 
+        private static bool TakeOutMoney(string serverMessage, XmlStoringDocument2 xmlDocument)
+        {
+            string[] information = serverMessage.Split(char.Parse("|"));
+
+            string socialSecurityNumber = information[0];
+            string accountNumber = information[1];
+            decimal balance = decimal.Parse(information[2]);
+
+            User loggedInUser = GetUser(socialSecurityNumber, xmlDocument);
+            try
+            {
+                Account account = loggedInUser[accountNumber];
+                Console.WriteLine("Account: {0}", account);
+                account.TakeOutFunds(balance);
+                xmlDocument.CreateOrUpdateUser(loggedInUser);
+                return true;
+            } catch (Exception err)
+            {
+                Console.WriteLine("Err: {0}", err);
+            }
+            return false;
+
+        }
+
         private static void ReadUsers (XmlStoringDocument2 xmlDocument, Socket socket)
+        {
+            // Users
+            byte[] bytesData;
+            ConcurrentDictionary<string, User> users = xmlDocument.ReadUsers();
+
+            if (users.Count == 0)
+            {
+                bytesData = Encoding.ASCII.GetBytes("Det finns inga sparade användare.");
+            } else
+            {
+                bytesData = ToBytes(users);
+            }
+            socket.Send(bytesData);
+        }
+
+        private static Account GetUserAccount(string socialSecurityNumber, string accountNumber, XmlStoringDocument2 xmlDocument)
+        {
+            // Users
+            List<Account> loggedInUserAccounts = GetUser(socialSecurityNumber, xmlDocument).Accounts;
+
+            if (loggedInUserAccounts.Count > 0)
+            {
+                foreach (Account account in loggedInUserAccounts)
+                {
+                    if (account.Number == int.Parse(accountNumber))
+                    {
+                        return account;
+                    }
+                }
+            }
+            throw new Exception("No account found.");
+        }
+
+        private static User GetUser (string socialSecurityNumber, XmlStoringDocument2 xmlDocument)
         {
             // Users
             ConcurrentDictionary<string, User> users = xmlDocument.ReadUsers();
 
-            // Byte array
-            byte[] bytesData = ToBytes(users);
-            socket.Send(bytesData);
+            foreach (KeyValuePair<string, User> user in users)
+            {
+                if (user.Key == socialSecurityNumber)
+                {
+                    return user.Value;
+                };
+            }
+            throw new Exception("No user found.");
         }
 
-        private static void ReadAccounts(XmlStoringDocument2 xmlDocument, Socket socket)
+        private static void ReadAccounts(string socialSecurityNumber, XmlStoringDocument2 xmlDocument, Socket socket)
         {
-            // Accounts
+            // Users
+            List<Account> loggedInUserAccounts = new List<Account>();
+            try
+            {
+                loggedInUserAccounts = GetUser(socialSecurityNumber, xmlDocument).Accounts;
+            } catch (Exception err)
+            {
+                Console.WriteLine("Error: {0}", err);
+                byte[] errorData = Encoding.ASCII.GetBytes("Ett fel uppstod.");
+                socket.Send(errorData);
+                return;
+            }
+            string dataToSend = "";
 
-            //List<Account> accounts = xmlDocument.ReadAccounts();
+            if (loggedInUserAccounts == null)
+            {
+                Console.WriteLine("Logged in user cannot be found..");
+                dataToSend = "Ett fel uppstod. Kan ej hitta användare.";
+            }
+            else if (loggedInUserAccounts.Count == 0)
+            {
+                Console.WriteLine("No accounts on user.");
+                dataToSend = "Du har inga konton.";
+            }
+            else
+            {
+                string accounts = "";
+                foreach (Account account in loggedInUserAccounts)
+                {
+                    string name = "Namn: " + account.Name;
+                    string balance = "Saldo: " + account.Balance.ToString();
+                    string number = "Kontonummer: " + account.Number.ToString();
+                    accounts += name;
+                    accounts += "\n";
+                    accounts += number;
+                    accounts += "\n";
+                    accounts += balance;
+                    accounts += "\n";
+                    accounts += "--------------------";
+                }
+                Console.WriteLine("Accounts: {0}", accounts);
+                dataToSend = accounts;
+            }
 
-            // Byte array
-            //byte[] bytesData = ToBytes(accounts);
-            //socket.Send(bytesData);
+            // Transfer to bytes and send
+            byte[] bytesData= Encoding.ASCII.GetBytes(dataToSend);
+            socket.Send(bytesData);
         }
 
         private static bool CreateUser (string message, XmlStoringDocument2 xmlDocument)
         {
             string[] data = message.Split('.');
-            int ssn = int.Parse(data[0]);
+            string ssn = data[0];
             string name = data[1];
 
             try
