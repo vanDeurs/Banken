@@ -71,7 +71,6 @@ namespace Server
             try
             {
                 users.AddOrUpdate(user.SocialSecurityNumber.ToString(), user, (key, oldValue) => user);
-                Console.WriteLine("Updated/added user: {0}", users);
             } catch (Exception err)
             {
                 Console.WriteLine("Error 1: {0}", err);
@@ -84,6 +83,21 @@ namespace Server
                 using (FileStream outputStream = new FileStream(savedPosition, FileMode.Create, FileAccess.Write))
                 {
                     serializer.WriteObject(outputStream, users);
+                }
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine("Error: {0}", err);
+                throw;
+            }
+        }
+        public void UpdateUsers (ConcurrentDictionary<string, User> updatedUsers)
+        {
+            try
+            {
+                using (FileStream outputStream = new FileStream(savedPosition, FileMode.Create, FileAccess.Write))
+                {
+                    serializer.WriteObject(outputStream, updatedUsers);
                 }
             }
             catch (Exception err)

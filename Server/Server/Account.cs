@@ -44,11 +44,12 @@ namespace Server
 
         public void TakeOutFunds(decimal funds)
         {
-            if ((this.balance.amount -= funds) < 0)
+            if (funds > this.balance.amount)
             {
                 throw new Exception("This take out would overdraw the account. STOP.");
             }
-            this.balance.amount -= funds;
+            decimal newBalance = this.balance.amount - funds;
+            this.balance.amount = newBalance;
         }
 
         public bool TransferFunds(int accountNumber, decimal funds)

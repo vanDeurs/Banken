@@ -63,26 +63,25 @@ namespace Server
                     string message = read.Remove(0, 1);
                     switch (operation)
                     {
-                        // Login
                         case 1:
                             Boolean loggedIn = Login(message, xmlDocument);
                             if (loggedIn)
                             {
-                                ReturnToClient(socket, "Successful_Login");
+                                ReturnToClient(socket, "Successful_Operation");
                             } else
                             {
-                                ReturnToClient(socket, "Failed_Login");
+                                ReturnToClient(socket, "Failed_Operation");
                             }
                             break;
                         case 2:
                             Boolean createdUser = CreateUser(message, xmlDocument);
                             if (createdUser)
                             {
-                                ReturnToClient(socket, "Successful_User_Creation");
+                                ReturnToClient(socket, "Successful_Operation");
                             }
                             else
                             {
-                                ReturnToClient(socket, "Failed_User_Creation");
+                                ReturnToClient(socket, "Failed_Operation");
                             }
                             break;
                         case 3:
@@ -92,15 +91,57 @@ namespace Server
                             ReadAccounts(message, xmlDocument, socket);
                             break;
                         case 5:
+                            Boolean insertedMoney = TransferMoney(true, message, xmlDocument);
+                            if (insertedMoney)
+                            {
+                                ReturnToClient(socket, "Successful_Operation");
+                            }
+                            else
+                            {
+                                ReturnToClient(socket, "Failed_Operation");
+                            }
                             break;
                         case 6:
-                            Boolean tookOutMoney = TakeOutMoney(message, xmlDocument);
+                            Boolean tookOutMoney = TransferMoney(false, message, xmlDocument);
                             if (tookOutMoney)
                             {
-                                ReturnToClient(socket, "Successful_Transfer");
+                                ReturnToClient(socket, "Successful_Operation");
                             } else
                             {
-                                ReturnToClient(socket, "Failed_Transfer");
+                                ReturnToClient(socket, "Failed_Operation");
+                            }
+                            break;
+                        case 7:
+                            Boolean deletedAccount = DeleteAccount(message, xmlDocument);
+                            if (deletedAccount)
+                            {
+                                ReturnToClient(socket, "Successful_Operation");
+                            }
+                            else
+                            {
+                                ReturnToClient(socket, "Failed_Operation");
+                            }
+                            break;
+                        case 8:
+                            Boolean createdAccount = CreateAccount(message, xmlDocument);
+                            if (createdAccount)
+                            {
+                                ReturnToClient(socket, "Successful_Operation");
+                            }
+                            else
+                            {
+                                ReturnToClient(socket, "Failed_Operation");
+                            }
+                            break;
+                        case 9:
+                            Boolean deletedUser = DeleteUser(message, xmlDocument);
+                            if (deletedUser)
+                            {
+                                ReturnToClient(socket, "Successful_Operation");
+                            }
+                            else
+                            {
+                                ReturnToClient(socket, "Failed_Operation");
                             }
                             break;
                     }
@@ -113,7 +154,74 @@ namespace Server
             }
         }
 
-        private static bool TakeOutMoney(string serverMessage, XmlStoringDocument2 xmlDocument)
+        private static bool DeleteUser(string serverMessage, XmlStoringDocument2 xmlDocument)
+        {
+            string socialSecurityNumberToDelete = serverMessage;
+
+            ConcurrentDictionary<string, User> users = xmlDocument.ReadUsers();
+            foreach (KeyValuePair<string, User> user in users)
+            {
+                if (user.Key == socialSecurityNumberToDelete)
+                {
+                    try
+                    {
+                        users.TryRemove(user.Key, out User deletedUser);
+                        xmlDocument.UpdateUsers(users);
+                        return true;
+                    } catch (Exception err)
+                    {
+                        Console.WriteLine("Error: {0}", err);
+                        return false;
+                    }
+                };
+            }
+            return false;
+        }
+
+        private static bool CreateAccount(string serverMessage, XmlStoringDocument2 xmlDocument)
+        {
+            string[] information = serverMessage.Split(char.Parse("|"));
+
+            string socialSecurityNumber = information[0];
+            string accountType = information[1];
+            string accountName = information[2];
+
+            try
+            {
+                User loggedInUser = GetUser(socialSecurityNumber, xmlDocument);
+                loggedInUser.CreateAccount(accountType, accountName);
+                xmlDocument.CreateOrUpdateUser(loggedInUser);
+                return true;
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine("Err: {0}", err);
+            }
+            return false;
+        }
+
+        private static bool DeleteAccount(string serverMessage, XmlStoringDocument2 xmlDocument)
+        {
+            string[] information = serverMessage.Split(char.Parse("|"));
+
+            string socialSecurityNumber = information[0];
+            string accountNumber = information[1];
+
+            try
+            {
+                User loggedInUser = GetUser(socialSecurityNumber, xmlDocument);
+                loggedInUser.DeleteAccount(accountNumber);
+                xmlDocument.CreateOrUpdateUser(loggedInUser);
+                return true;
+            }
+            catch (Exception err)
+            {
+                Console.WriteLine("Err: {0}", err);
+            }
+            return false;
+        }
+
+        private static bool TransferMoney(bool insertMoney, string serverMessage, XmlStoringDocument2 xmlDocument)
         {
             string[] information = serverMessage.Split(char.Parse("|"));
 
@@ -121,20 +229,20 @@ namespace Server
             string accountNumber = information[1];
             decimal balance = decimal.Parse(information[2]);
 
-            User loggedInUser = GetUser(socialSecurityNumber, xmlDocument);
             try
             {
+                User loggedInUser = GetUser(socialSecurityNumber, xmlDocument);
                 Account account = loggedInUser[accountNumber];
-                Console.WriteLine("Account: {0}", account);
-                account.TakeOutFunds(balance);
+                if (insertMoney) account.AddFunds(balance);
+                else account.TakeOutFunds(balance);
                 xmlDocument.CreateOrUpdateUser(loggedInUser);
                 return true;
-            } catch (Exception err)
+            }
+            catch (Exception err)
             {
                 Console.WriteLine("Err: {0}", err);
             }
             return false;
-
         }
 
         private static void ReadUsers (XmlStoringDocument2 xmlDocument, Socket socket)
@@ -227,6 +335,7 @@ namespace Server
                     accounts += balance;
                     accounts += "\n";
                     accounts += "--------------------";
+                    accounts += "\n";
                 }
                 Console.WriteLine("Accounts: {0}", accounts);
                 dataToSend = accounts;
@@ -254,12 +363,6 @@ namespace Server
             }
             return true;
         }
-
-        private static byte[] ToBytes(List<string> users)
-        {
-            byte[] dataAsBytes = users.AsEnumerable().SelectMany(s => ASCIIEncoding.ASCII.GetBytes(s)).ToArray();
-            return dataAsBytes;
-        }
         private static byte[] ToBytes(ConcurrentDictionary<string, User> users)
         {
             string data = "";
@@ -271,7 +374,6 @@ namespace Server
                 data += user.Key;
                 data += '|';
             }
-            Console.WriteLine("Data: {0}", data);
             byteData = Encoding.ASCII.GetBytes(data);
             return byteData;
         }
@@ -280,8 +382,6 @@ namespace Server
             ConcurrentDictionary<string, User> users = xmlDocument.ReadUsers();
             foreach (KeyValuePair<string, User> user in users)
             {
-                Console.WriteLine("user in login: {0}", user.Value);
-                Console.WriteLine("user ssn in login: {0}", user.Key);
                 if (user.Key == ssn) return true;
             }
             return false;

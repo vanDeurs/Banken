@@ -29,18 +29,19 @@ namespace Server
             get { return accounts; }
         }
 
+
         public Account this[string number] => FindAccountByNumber(number);
 
         private Account FindAccountByNumber(string number)
         {
-            for (int j = 0; j < accounts.Count; j++)
+            for (int i = 0; i < accounts.Count; i++)
             {
-                if (accounts[j].Number == int.Parse(number))
+                if (accounts[i].Number == int.Parse(number))
                 {
-                    return accounts[j];
+                    return accounts[i];
                 }
             }
-            throw new ArgumentOutOfRangeException(nameof(name), $"Name {name} is not found.");
+            throw new ArgumentOutOfRangeException(nameof(number), $"Number {number} is not found.");
         }
 
         public string Name
@@ -56,6 +57,33 @@ namespace Server
             {
                 return this.socialSecurityNumber;
             }
+        }
+
+        public void DeleteAccount (string accountNumber)
+        {
+            for (int i = 0; i < accounts.Count; i++)
+            {
+                if (accounts[i].Number == int.Parse(accountNumber))
+                {
+                    accounts.RemoveAt(i);
+                }
+            }
+        }
+        public void CreateAccount(string accountType, string name)
+        {
+           if (accountType == "SavingsAccount")
+            {
+                SavingsAccount newAccount = new SavingsAccount(name);
+                accounts.Add(newAccount);
+            } else if (accountType == "CardAccount")
+            {
+                CardAccount newAccount = new CardAccount(name);
+                accounts.Add(newAccount);
+            } else
+            {
+                throw new Exception("Account type is faulty.");
+            }
+
         }
     }
 }

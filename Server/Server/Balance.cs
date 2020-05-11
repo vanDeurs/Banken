@@ -17,6 +17,6 @@ namespace Server
             this.amount = amount;
             this.currency = currency;
         }
-        public override string ToString() => $"({amount} {currency})";
+        public override string ToString() => $"{amount} {currency}";
     }
 }
