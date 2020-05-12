@@ -1,152 +1,128 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Xml;
+using System.IO;
+using System.Runtime.Serialization;
+using System.Collections.Concurrent;
 
 namespace Server
 {
-    sealed class XmlStoringDocument : XmlDocument
+    sealed class XmlStoringDocument
     {
-        private string savedPosition;
-        private XmlDocument xmlDocument;
+        private readonly string savedPosition = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "users.xml");
+        private List<Type> listTypes = new List<Type>();
+        private static DataContractSerializer serializer;
 
         // Konstruktor
         public XmlStoringDocument()
         {
-            savedPosition = "C:\\Users/alexander/documents/users.xml";
-            // Skapa XML dokumentC:\Users\Alexander\Documents\StoraInlämning\Server\Server\XmlStoringDocument2.cs
-            xmlDocument = new XmlDocument();
+            // Lägg till dem klasser som ska serializas
+            listTypes.Add(typeof(User));
+            listTypes.Add(typeof(CardAccount));
+            listTypes.Add(typeof(SavingsAccount));
+            listTypes.Add(typeof(Account));
 
-            // Ange version och encoding for XML dokument...
-            XmlDeclaration xmlDeclaration = xmlDocument.CreateXmlDeclaration("1.0", "utf-8", null);
+            // Skapa serializer
+            serializer = new DataContractSerializer(typeof(ConcurrentDictionary<string, User>), listTypes);
 
-            // ... och lägg till i dokumentet
-            xmlDocument.AppendChild(xmlDeclaration);
-
-            // Lägg till rotelementet "messages" där alla meddelanden kommer att sparas
-            XmlNode messages = xmlDocument.CreateElement("usersList");
-            xmlDocument.AppendChild(messages);
-
-            // Spara till fil
+            // Försök att hämta users från XML-dokument. 
+            // Om det ej går så hamnar det i catch-blocket där den istället skapar XML-dokumentet.
+            ConcurrentDictionary<string, User> users = new ConcurrentDictionary<string, User>();
             try
             {
-                xmlDocument.Save(savedPosition);
+                using (FileStream inputStream = new FileStream(savedPosition, FileMode.Open, FileAccess.Read))
+                {
+                    users = (ConcurrentDictionary<string, User>)serializer.ReadObject(inputStream);
+                }
+            } catch
+            {
+                try
+                {
+                    // Serializa ett tomt user dictionary för att skapa XML-dokumentet.
+                    using (FileStream outputStream = new FileStream(savedPosition, FileMode.Create, FileAccess.Write))
+                    {
+                        serializer.WriteObject(outputStream, users);
+                    }
+                }
+                catch (Exception err1)
+                {
+                    Console.WriteLine("Error: {0}", err1);
+                    throw;
+                }
+            }
+        }
+
+        // Skapa eller uppdatera en användare i XML-dokumentet
+        public void CreateOrUpdateUser(User user)
+        {
+            ConcurrentDictionary<string, User> users = new ConcurrentDictionary<string, User>();
+            try
+            {
+                // Hämta lagrade användare
+                users = ReadUsers();
+            } catch (Exception err)
+            {
+                Console.WriteLine("Error when fetching users: {0}", err);
+                return;
+            }
+
+            // Uppdatera eller lägg till användare i dictionaryn
+            try
+            {
+                users.AddOrUpdate(user.SocialSecurityNumber.ToString(), user, (key, oldValue) => user);
+            } catch (Exception err)
+            {
+                Console.WriteLine("Error 1: {0}", err);
+                return;
+            }
+
+            // Uppdatera XML-dokumentet med den nya user dictionaryn
+            try
+            {
+                using (FileStream outputStream = new FileStream(savedPosition, FileMode.Create, FileAccess.Write))
+                {
+                    serializer.WriteObject(outputStream, users);
+                }
             }
             catch (Exception err)
             {
-                Console.WriteLine("Err: {0}", err);
-                throw new XmlDocumentException("Kunde inte spara xml dokument");
+                Console.WriteLine("Error: {0}", err);
+                throw;
             }
         }
-        public void CreateUser(User user)
+
+        // Ersätt användare i XML-dokumentet med en ny version av användare
+        public void UpdateUsers (ConcurrentDictionary<string, User> updatedUsers)
         {
-            xmlDocument.Load(savedPosition);
-
-            // Skapa användare
-            XmlNode newUser = xmlDocument.CreateElement("user");
-
-            // Lägg till namn
-            XmlElement name = xmlDocument.CreateElement("name");
-            name.InnerText = user.Name;
-
-            /// ... och personnummer
-            XmlElement socialSecurityNumber = xmlDocument.CreateElement("ssn");
-            socialSecurityNumber.InnerText = user.SocialSecurityNumber.ToString();
-
-
-            newUser.AppendChild(name);
-            newUser.AppendChild(socialSecurityNumber);
-
-            // Lägg till i messageList i dokumentet
-            XmlNode rootList = xmlDocument.SelectSingleNode("usersList");
-            if (rootList == null)
+            try
             {
-                throw new XmlDocumentException("Rootlist är null i AddUser()");
-            }
-            rootList.AppendChild(newUser);
-
-            Console.WriteLine("rootList: {0}", rootList);
-            xmlDocument.Save(savedPosition);
-
-            ReadUsers();
-        }
-        public IDictionary<int, string> ReadUsers()
-        {
-            // Ladda in dokument och hämta meddelanden
-            this.xmlDocument.Load(savedPosition);
-            XmlNodeList users = xmlDocument.SelectNodes("usersList");
-            Console.WriteLine("users in readusers(): {0}", users.Count);
-
-            if (users == null)
-            {
-                throw new XmlDocumentException("Rootlist är null i ReadUsers()");
-            }
-
-            //List<XmlNode> usersList = new List<XmlNode>();
-            IDictionary<int, string> usersList = new Dictionary<int, string>();
-
-            // Gå igenom dokumentet och spara alla meddelanden i en List
-            foreach (XmlNode root in users)
-            {
-                Console.WriteLine("root: {0}", root);
-                foreach (XmlNode user in root.ChildNodes)
+                using (FileStream outputStream = new FileStream(savedPosition, FileMode.Create, FileAccess.Write))
                 {
-                    string name = "";
-                    int ssn = 0;
-                    int index = 0;
-                    List <Account> accounts = new List<Account>();
-
-                    Console.WriteLine("user 1: {0}", user);
-                    foreach (XmlNode children in user.ChildNodes)
-                    {
-                        Console.WriteLine("Children: {0}", children.InnerText);
-
-                        if (index == 0) name = children.InnerText;
-                        else ssn = int.Parse(children.InnerText);
-                        index++;
-                    }
-                    usersList.Add(ssn, name);
+                    serializer.WriteObject(outputStream, updatedUsers);
                 }
             }
-            return usersList;
+            catch (Exception err)
+            {
+                Console.WriteLine("Error: {0}", err);
+                throw;
+            }
         }
-        /*public List<Account> ReadAccounts()
+        
+        // Läs in och returnera alla användare från XML-dokumentet
+        public ConcurrentDictionary<string, User> ReadUsers()
         {
-            // Ladda in dokument och hämta meddelanden
-            this.xmlDocument.Load(savedPosition);
-            XmlNodeList users = xmlDocument.SelectNodes("usersList");
-            Console.WriteLine("users in readusers(): {0}", users.Count);
-
-            if (users == null)
+            ConcurrentDictionary<string, User> users = new ConcurrentDictionary<string, User>();
+            try
             {
-                throw new XmlDocumentException("Rootlist är null i ReadUsers()");
-            }
-
-            //List<XmlNode> usersList = new List<XmlNode>();
-            IDictionary<int, string> usersList = new Dictionary<int, string>();
-
-            // Gå igenom dokumentet och spara alla meddelanden i en List
-            foreach (XmlNode root in users)
-            {
-                Console.WriteLine("root: {0}", root);
-                foreach (XmlNode user in root.ChildNodes)
+                using (FileStream inputStream = new FileStream(savedPosition, FileMode.Open, FileAccess.Read))
                 {
-                    string name = "";
-                    int ssn = 0;
-                    int index = 0;
-
-                    Console.WriteLine("user 1: {0}", user);
-                    foreach (XmlNode children in user.ChildNodes)
-                    {
-                        Console.WriteLine("Children: {0}", children.InnerText);
-
-                        if (index == 0) name = children.InnerText;
-                        else ssn = int.Parse(children.InnerText);
-                        index++;
-                    }
-                    usersList.Add(ssn, name);
+                    users = (ConcurrentDictionary<string, User>)serializer.ReadObject(inputStream);
                 }
+                return users;
+            } catch (Exception err)
+            {
+                Console.WriteLine("Error: {0}", err);
+                throw;
             }
-            return usersList;
-        }*/
+        }
     }
 }

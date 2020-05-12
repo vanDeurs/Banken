@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Server
 {
@@ -12,8 +7,6 @@ namespace Server
     {
         [DataMember]
         readonly static double interest = 1.03;
-        public CardAccount(string accountName) : base(accountName)
-        {
-        }
+        public CardAccount(string accountName) : base(accountName) {}
     }
 }

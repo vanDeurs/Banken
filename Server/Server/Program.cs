@@ -1,13 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Net;
 using System.Net.Sockets;
-using System.Xml;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.IO;
-using System.Runtime.Serialization;
 using System.Collections.Concurrent;
 
 namespace Server
@@ -18,7 +13,7 @@ namespace Server
         {
             // Anslutningsinställningar
             IPAddress myIP = IPAddress.Parse("127.0.0.1");
-            int port = 8069;
+            int port = 8083;
 
             // Skapa TcpListernet, börja lyssna och vänta på anslutning
             TcpListener tcpListener = new TcpListener(myIP, port);
@@ -28,12 +23,12 @@ namespace Server
             Console.WriteLine("Väntar på anslutning...");
 
             // Skapa XML dokument
-            XmlStoringDocument2 xmlDocument;
+            XmlStoringDocument xmlDocument;
             try
             {
-                xmlDocument = new XmlStoringDocument2();
+                xmlDocument = new XmlStoringDocument();
             }
-            catch (XmlDocumentException e)
+            catch (Exception e)
             {
                 Console.WriteLine("Error: {0}", e);
                 return;
@@ -48,6 +43,7 @@ namespace Server
                 try
                 {
                     Console.WriteLine("New message from client..");
+
                     // Ta emot meddelande
                     Byte[] byteMessage = new byte[256];
                     int byteMessageSize = socket.Receive(byteMessage);
@@ -58,11 +54,15 @@ namespace Server
                     {
                         read += Convert.ToChar(byteMessage[i]);
                     }
-                    // Välj alternativ utifrån mottaget meddelande
+
+                    // Den första karaktären i meddelandet avgör vilken operation som körs.
                     int operation = int.Parse(read[0].ToString());
+                    
+                    // Datan som ska hantras av funktionen som körs
                     string message = read.Remove(0, 1);
                     switch (operation)
                     {
+                        // Logga in
                         case 1:
                             Boolean loggedIn = Login(message, xmlDocument);
                             if (loggedIn)
@@ -73,6 +73,7 @@ namespace Server
                                 ReturnToClient(socket, "Failed_Operation");
                             }
                             break;
+                        // Skapa användare
                         case 2:
                             Boolean createdUser = CreateUser(message, xmlDocument);
                             if (createdUser)
@@ -84,12 +85,15 @@ namespace Server
                                 ReturnToClient(socket, "Failed_Operation");
                             }
                             break;
+                        // Läs in alla användare
                         case 3:
                             ReadUsers(xmlDocument, socket);
                             break;
+                        // Läs in alla konton på inloggad användare
                         case 4:
                             ReadAccounts(message, xmlDocument, socket);
                             break;
+                        // Lägga in pengar på ett konto
                         case 5:
                             Boolean insertedMoney = TransferMoney(true, message, xmlDocument);
                             if (insertedMoney)
@@ -101,6 +105,7 @@ namespace Server
                                 ReturnToClient(socket, "Failed_Operation");
                             }
                             break;
+                        // Ta ut pengar
                         case 6:
                             Boolean tookOutMoney = TransferMoney(false, message, xmlDocument);
                             if (tookOutMoney)
@@ -111,6 +116,7 @@ namespace Server
                                 ReturnToClient(socket, "Failed_Operation");
                             }
                             break;
+                        // Stäng konto
                         case 7:
                             Boolean deletedAccount = DeleteAccount(message, xmlDocument);
                             if (deletedAccount)
@@ -122,6 +128,7 @@ namespace Server
                                 ReturnToClient(socket, "Failed_Operation");
                             }
                             break;
+                        // Skapa konto
                         case 8:
                             Boolean createdAccount = CreateAccount(message, xmlDocument);
                             if (createdAccount)
@@ -133,6 +140,7 @@ namespace Server
                                 ReturnToClient(socket, "Failed_Operation");
                             }
                             break;
+                        // Radera användare
                         case 9:
                             Boolean deletedUser = DeleteUser(message, xmlDocument);
                             if (deletedUser)
@@ -154,7 +162,8 @@ namespace Server
             }
         }
 
-        private static bool DeleteUser(string serverMessage, XmlStoringDocument2 xmlDocument)
+        // Radera användare
+        private static bool DeleteUser(string serverMessage, XmlStoringDocument xmlDocument)
         {
             string socialSecurityNumberToDelete = serverMessage;
 
@@ -178,7 +187,8 @@ namespace Server
             return false;
         }
 
-        private static bool CreateAccount(string serverMessage, XmlStoringDocument2 xmlDocument)
+        // Skapa konto
+        private static bool CreateAccount(string serverMessage, XmlStoringDocument xmlDocument)
         {
             string[] information = serverMessage.Split(char.Parse("|"));
 
@@ -200,7 +210,8 @@ namespace Server
             return false;
         }
 
-        private static bool DeleteAccount(string serverMessage, XmlStoringDocument2 xmlDocument)
+        // Radera konto
+        private static bool DeleteAccount(string serverMessage, XmlStoringDocument xmlDocument)
         {
             string[] information = serverMessage.Split(char.Parse("|"));
 
@@ -210,6 +221,8 @@ namespace Server
             try
             {
                 User loggedInUser = GetUser(socialSecurityNumber, xmlDocument);
+                if (loggedInUser[accountNumber] == null) return false;
+
                 loggedInUser.DeleteAccount(accountNumber);
                 xmlDocument.CreateOrUpdateUser(loggedInUser);
                 return true;
@@ -221,7 +234,8 @@ namespace Server
             return false;
         }
 
-        private static bool TransferMoney(bool insertMoney, string serverMessage, XmlStoringDocument2 xmlDocument)
+        // Sätta in eller ta ut pengar
+        private static bool TransferMoney(bool insertMoney, string serverMessage, XmlStoringDocument xmlDocument)
         {
             string[] information = serverMessage.Split(char.Parse("|"));
 
@@ -245,15 +259,15 @@ namespace Server
             return false;
         }
 
-        private static void ReadUsers (XmlStoringDocument2 xmlDocument, Socket socket)
+        // Läs in användare
+        private static void ReadUsers (XmlStoringDocument xmlDocument, Socket socket)
         {
-            // Users
             byte[] bytesData;
             ConcurrentDictionary<string, User> users = xmlDocument.ReadUsers();
 
             if (users.Count == 0)
             {
-                bytesData = Encoding.ASCII.GetBytes("Det finns inga sparade användare.");
+                bytesData = Encoding.ASCII.GetBytes("no_users");
             } else
             {
                 bytesData = ToBytes(users);
@@ -261,9 +275,9 @@ namespace Server
             socket.Send(bytesData);
         }
 
-        private static Account GetUserAccount(string socialSecurityNumber, string accountNumber, XmlStoringDocument2 xmlDocument)
+        // Hämta konto från användare med hjälp av kontonummer och personnummer
+        private static Account GetUserAccount(string socialSecurityNumber, string accountNumber, XmlStoringDocument xmlDocument)
         {
-            // Users
             List<Account> loggedInUserAccounts = GetUser(socialSecurityNumber, xmlDocument).Accounts;
 
             if (loggedInUserAccounts.Count > 0)
@@ -279,9 +293,9 @@ namespace Server
             throw new Exception("No account found.");
         }
 
-        private static User GetUser (string socialSecurityNumber, XmlStoringDocument2 xmlDocument)
+        // Hämta användare med hjälp av personnummer
+        private static User GetUser (string socialSecurityNumber, XmlStoringDocument xmlDocument)
         {
-            // Users
             ConcurrentDictionary<string, User> users = xmlDocument.ReadUsers();
 
             foreach (KeyValuePair<string, User> user in users)
@@ -294,7 +308,8 @@ namespace Server
             throw new Exception("No user found.");
         }
 
-        private static void ReadAccounts(string socialSecurityNumber, XmlStoringDocument2 xmlDocument, Socket socket)
+        // Hämta alla konton från användare med hjälp av personnummer
+        private static void ReadAccounts(string socialSecurityNumber, XmlStoringDocument xmlDocument, Socket socket)
         {
             // Users
             List<Account> loggedInUserAccounts = new List<Account>();
@@ -346,11 +361,26 @@ namespace Server
             socket.Send(bytesData);
         }
 
-        private static bool CreateUser (string message, XmlStoringDocument2 xmlDocument)
+        // Logga in användare
+        private static Boolean Login(string ssn, XmlStoringDocument xmlDocument)
+        {
+            ConcurrentDictionary<string, User> users = xmlDocument.ReadUsers();
+            foreach (KeyValuePair<string, User> user in users)
+            {
+                if (user.Key == ssn) return true;
+            }
+            return false;
+        }
+
+        // Skapa ny användare
+        private static bool CreateUser (string message, XmlStoringDocument xmlDocument)
         {
             string[] data = message.Split('.');
             string ssn = data[0];
             string name = data[1];
+
+            // Bekräfta att det inte redan finns en användare med det här personnumret
+            if (UserExists(ssn, xmlDocument)) return false;
 
             try
             {
@@ -363,6 +393,18 @@ namespace Server
             }
             return true;
         }
+
+        private static bool UserExists(string ssn, XmlStoringDocument xmlDocument)
+        {
+            ConcurrentDictionary<string, User> users = xmlDocument.ReadUsers();
+            foreach (KeyValuePair<string, User> user in users)
+            {
+                if (user.Key == ssn) return true;
+            }
+            return false;
+        }
+
+        // Konvertera Dict till bytes array
         private static byte[] ToBytes(ConcurrentDictionary<string, User> users)
         {
             string data = "";
@@ -374,19 +416,12 @@ namespace Server
                 data += user.Key;
                 data += '|';
             }
+            data = data.Remove(data.Length - 1, 1);
             byteData = Encoding.ASCII.GetBytes(data);
             return byteData;
         }
-        private static Boolean Login (string ssn, XmlStoringDocument2 xmlDocument)
-        {
-            ConcurrentDictionary<string, User> users = xmlDocument.ReadUsers();
-            foreach (KeyValuePair<string, User> user in users)
-            {
-                if (user.Key == ssn) return true;
-            }
-            return false;
-        }
 
+        // Funktion att konvertera sträng till bytes array och skicka till client
         private static void ReturnToClient (Socket socket, string data)
         {
             Byte[] byteData = Encoding.ASCII.GetBytes(data);

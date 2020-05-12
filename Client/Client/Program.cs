@@ -1,23 +1,21 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Net.Sockets;
-using System.Threading.Tasks;
-using System.IO;
-using System.Threading;
 
 namespace Client
 {
     class Program
     {
+        // Bool som visar om en användare är inloggad
         static bool isLoggedIn = false;
+
+        // Lagrar den inloggades personnummer
         static string loggedInSocialSecurityNumber;
 
         static void Main(string[] args)
         {
             string adress = "127.0.0.1";
-            int port = 8069;
+            int port = 8083;
 
             // Anslut till server
             TcpClient client = new TcpClient();
@@ -31,6 +29,7 @@ namespace Client
                 return;
             }
 
+            // Klientens huvudsakliga struktur
             while (true)
             {
                 try
@@ -46,15 +45,15 @@ namespace Client
                         continue;
                     }
                 }
-                catch
+                catch (Exception err)
                 {
-                    Console.WriteLine("Kunde inte läsa ditt val. Försök igen.");
-                    Console.WriteLine("");
+                    Console.WriteLine("Err: {0}", err);
                     continue;
                 }
             }
         }
 
+        // Meny som visas för inloggade användare
         static void ShowLoggedInMenu (TcpClient client)
         {
             Console.WriteLine("1. Se konton");
@@ -77,22 +76,18 @@ namespace Client
             }
         }
 
+        // Visar användaren konton
         static void ViewAccounts(TcpClient client)
         {
-            // Tell server to return accounts
             NetworkStream tcpStream = client.GetStream();
 
             string message = "4" + loggedInSocialSecurityNumber;
+            TcpWrite(tcpStream, message);
 
-            string clientMessage = TcpWrite(tcpStream, message);
-
-            Console.WriteLine("Klient: {0}", clientMessage);
-
-            if (clientMessage != "Servern har tagit emot din förfrågan.") return;
-
+            string messageFromServer = "";
             try
             {
-                string messageFromServer = TcpRead(tcpStream);
+                messageFromServer = TcpRead(tcpStream);
                 Console.WriteLine("Konton");
                 Console.WriteLine("");
                 Console.WriteLine(messageFromServer);
@@ -109,46 +104,47 @@ namespace Client
                 try
                 {
                     option = int.Parse(Console.ReadLine());
-                    break;
+                    // Olika alternativ som användaren kan göra med sina konton
+                    switch (option)
+                    {
+                        case 1:
+                            InsertMoney(client);
+                            break;
+                        case 2:
+                            TakeOutMoney(client);
+                            break;
+                        case 3:
+                            DeleteAccount(client);
+                            break;
+                        case 4:
+                            CreateAccount(client);
+                            break;
+                        case 5:
+                            return;
+                        default:
+                            Console.WriteLine("Kunde inte läsa ditt val. Försök igen.");
+                            Console.WriteLine("");
+                            break;
+                    }
                 }
                 catch
                 {
-                    Console.WriteLine("Kunde inte läsa ditt val. Försök igen. 1");
+                    Console.WriteLine("Kunde inte läsa ditt val. Försök igen.");
                     Console.WriteLine("");
                     continue;
                 }
             }
 
-            switch (option)
-            {
-                case 1:
-                    InsertMoney(client);
-                    break;
-                case 2:
-                    TakeOutMoney(client);
-                    break;
-                case 3:
-                    DeleteAccount(client);
-                    break;
-                case 4:
-                    CreateAccount(client);
-                    break;
-                case 5:
-                    break;
-                default:
-                    Console.WriteLine("Kunde inte läsa ditt val. Försök igen. 2");
-                    Console.WriteLine("");
-                    break;
-            }
         }
 
+        // Användaren kan skapa ett nytt konto
         private static void CreateAccount(TcpClient client)
         {
             Console.WriteLine("Kontotyper");
             Console.WriteLine("1. Sparkonto");
             Console.WriteLine("2. Kortkonto");
             Console.WriteLine("");
-            Console.Write("Typ av konto: ");
+            Console.Write("Typ av konto (välj nummer): ");
 
             while (true)
             {
@@ -173,14 +169,10 @@ namespace Client
                     string name = Console.ReadLine();
 
                     string dataToSend = "8" + loggedInSocialSecurityNumber + "|" + account + "|" + name;
-
+        
                     NetworkStream tcpStream = client.GetStream();
 
-                    string clientMessage = TcpWrite(tcpStream, dataToSend);
-                    Console.WriteLine("Klient: {0}", clientMessage);
-
-                    if (clientMessage != "Servern har tagit emot din förfrågan.") return;
-
+                    TcpWrite(tcpStream, dataToSend);
                     string messageFromServer = TcpRead(tcpStream);
 
                     if (messageFromServer == "Successful_Operation")
@@ -201,13 +193,14 @@ namespace Client
             }
         }
 
+        // Användaren kan radera ett konto
         private static void DeleteAccount(TcpClient client)
         {
             int number;
 
             while (true)
             {
-                Console.Write("Kontonummer att radera: ");
+                Console.Write("Konto att radera (kontonummer): ");
                 bool numberSuccess = int.TryParse(Console.ReadLine(), out number);
 
                 if (!numberSuccess)
@@ -225,11 +218,7 @@ namespace Client
 
             string dataToSend = "7" + loggedInSocialSecurityNumber + "|" + number;
 
-            string clientMessage = TcpWrite(tcpStream, dataToSend);
-            Console.WriteLine("Klient: {0}", clientMessage);
-
-            if (clientMessage != "Servern har tagit emot din förfrågan.") return;
-
+            TcpWrite(tcpStream, dataToSend);
             string messageFromServer = TcpRead(tcpStream);
 
             if (messageFromServer == "Successful_Operation")
@@ -242,6 +231,7 @@ namespace Client
             }
         }
 
+        // Användare kan ta ut pengar
         private static void TakeOutMoney(TcpClient client)
         {
             int number;
@@ -269,11 +259,7 @@ namespace Client
 
             string dataToSend = "6" + loggedInSocialSecurityNumber + "|" + number + "|" + balance;
 
-            string clientMessage = TcpWrite(tcpStream, dataToSend);
-            Console.WriteLine("Klient: {0}", clientMessage);
-
-            if (clientMessage != "Servern har tagit emot din förfrågan.") return;
-
+            TcpWrite(tcpStream, dataToSend);
             string messageFromServer = TcpRead(tcpStream);
 
             if (messageFromServer == "Successful_Operation")
@@ -286,6 +272,7 @@ namespace Client
             }
         }
 
+        // Användare kan sätta in pengar
         private static void InsertMoney(TcpClient client)
         {
             int number;
@@ -314,11 +301,7 @@ namespace Client
 
             string dataToSend = "5" + loggedInSocialSecurityNumber + "|" + number + "|" + balance;
 
-            string clientMessage = TcpWrite(tcpStream, dataToSend);
-            Console.WriteLine("Klient: {0}", clientMessage);
-
-            if (clientMessage != "Servern har tagit emot din förfrågan.") return;
-
+            TcpWrite(tcpStream, dataToSend);
             string messageFromServer = TcpRead(tcpStream);
 
             if (messageFromServer == "Successful_Operation")
@@ -340,12 +323,14 @@ namespace Client
             Console.WriteLine("5. Gå tillbaka");
         }
 
+        // Användaren loggar ut
         static void Logout (TcpClient client)
         {
             isLoggedIn = false;
             loggedInSocialSecurityNumber = "";
         }
 
+        // Meny som visas för utloggade användare
         static void ShowLoggedOutMenu (TcpClient client)
         {
             // Användare väljer ett alternativ
@@ -354,31 +339,45 @@ namespace Client
             Console.WriteLine("3. Se alla användare");
             Console.WriteLine("4. Stäng program.");
             Console.WriteLine("");
-            Console.Write("Vad vill du göra: ");
 
-            int option = int.Parse(Console.ReadLine());
-
-            switch (option)
+            while (true)
             {
-                case 1:
-                    Login(client);
-                    break;
-                case 2:
-                    CreateUser(client);
-                    break;
-                case 3:
-                    ReadUsers(client);
-                    break;
-                case 4:
-                    CloseProgram(client);
-                    break;
-                default:
+                try
+                {
+                    Console.Write("Vad vill du göra: ");
+                    int option = int.Parse(Console.ReadLine());
+
+                    switch (option)
+                    {
+                        case 1:
+                            Login(client);
+                            break;
+                        case 2:
+                            CreateUser(client);
+                            break;
+                        case 3:
+                            ReadUsers(client);
+                            break;
+                        case 4:
+                            CloseProgram(client);
+                            break;
+                        default:
+                            Console.WriteLine("Kunde inte läsa ditt val. Försök igen.");
+                            Console.WriteLine("");
+                            continue;
+                    }
+                    return;
+                } catch
+                {
                     Console.WriteLine("Kunde inte läsa ditt val. Försök igen.");
                     Console.WriteLine("");
-                    break;
+                    continue;
+                }
             }
+
         }
 
+        // Radera en användare
         private static void DeleteUser(TcpClient client)
         {
 
@@ -389,48 +388,43 @@ namespace Client
 
             string dataToSend = "9" + number;
 
-            string clientMessage = TcpWrite(tcpStream, dataToSend);
-            Console.WriteLine("Klient: {0}", clientMessage);
-
-            if (clientMessage != "Servern har tagit emot din förfrågan.") return;
-
+            TcpWrite(tcpStream, dataToSend);
             string messageFromServer = TcpRead(tcpStream);
 
             if (messageFromServer == "Successful_Operation")
             {
-                Console.WriteLine("Operationen lyckades.");
+                Console.WriteLine("Du har raderat användaren med personnummer {0}.", number);
             }
             else
             {
-                Console.WriteLine("Inloggning misslyckades. Försök igen.");
-                Console.WriteLine("Server: {0}", messageFromServer);
+                Console.WriteLine("Operation misslyckades.");
             }
         }
 
+        // Stäng av programmet
         static void CloseProgram(TcpClient client)
         {
             client.Close();
             Environment.Exit(1);
         }
-        static String TcpWrite (NetworkStream tcpStream, string text)
+        
+        // Funktion för att skriva till servern
+        static void TcpWrite (NetworkStream tcpStream, string text)
         {
             // Gör om me
             Byte[] byteMessage = Encoding.ASCII.GetBytes(text);
-            string clientMessage;
             try
             {
                 tcpStream.Write(byteMessage, 0, byteMessage.Length);
-                clientMessage = "Servern har tagit emot din förfrågan.";
-                return clientMessage;
             }
             catch (Exception e)
             {
                 Console.WriteLine("Error 2: {0}", e);
-                clientMessage = e.ToString();
+                throw;
             }
-            return clientMessage;
         }
 
+        // Funktion för att läsa in och konvertera meddelanden från servern
         static String TcpRead (NetworkStream tcpStream)
         {
             // Ta emot meddelande
@@ -460,6 +454,7 @@ namespace Client
             return message;
         }
 
+        // Användare kan logga in
         static void Login (TcpClient client)
         {
             // Skriv in personnummer och skicka till server.
@@ -469,21 +464,16 @@ namespace Client
             Console.WriteLine("Logga in");
             Console.WriteLine("");
  
-            Console.WriteLine("Personnummer: ");
+            Console.Write("Personnummer: ");
             string socialSecurityNumber = "1" + Console.ReadLine();
 
             NetworkStream tcpStream = client.GetStream();
 
-            string clientMessage = TcpWrite(tcpStream, socialSecurityNumber);
-            Console.WriteLine("Klient: {0}", clientMessage);
-
-            if (clientMessage != "Servern har tagit emot din förfrågan.") return;
-
+            TcpWrite(tcpStream, socialSecurityNumber);
             string messageFromServer = TcpRead(tcpStream);
             
             if (messageFromServer == "Successful_Operation")
             {
-                // Store the logged in social security number so we know which account is logged in.
                 Console.WriteLine("Inloggning lyckades.");
                 loggedInSocialSecurityNumber = socialSecurityNumber.Remove(0, 1);
                 isLoggedIn = true;
@@ -493,56 +483,67 @@ namespace Client
                 Console.WriteLine("Server: {0}", messageFromServer);
             }
         }
+
+        // Skapa en ny användare
         static void CreateUser (TcpClient client)
         {
-            // Skriv in personnummer för användare
-            // Få tillbaka ett svar på om det fungerade.
-
             Console.WriteLine("Ny användare");
             Console.WriteLine("");
-            Console.Write("Personnnummer: ");
 
             string data = "2";
 
-            string socialSecurityNumber = Console.ReadLine();
-
-            Console.Write("Namn: ");
-            string name = Console.ReadLine();
-
-            data += socialSecurityNumber;
-            data += ".";
-            data += name;
-
-            NetworkStream tcpStream = client.GetStream();
-
-            string clientMessage = TcpWrite(tcpStream, data);
-            Console.WriteLine("Klient: {0}", clientMessage);
-
-            if (clientMessage != "Servern har tagit emot din förfrågan.") return;
-
-            string messageFromServer = TcpRead(tcpStream);
-
-            if (messageFromServer == "Successful_Operation")
+            while (true)
             {
-                Console.WriteLine("Användare med namnet '{0}' har skapats.", name);
-            } else
-            {
-                Console.WriteLine("Skapandet misslyckades. Försök igen.");
-                Console.WriteLine("Server: {0}", messageFromServer);
+                try
+                {
+                    Console.Write("Personnnummer: ");
+                    Int64 socialSecurityNumber =  Int64.Parse(Console.ReadLine());
+
+                    Console.Write("Namn: ");
+                    string name = Console.ReadLine();
+
+                    data += socialSecurityNumber.ToString();
+                    data += ".";
+                    data += name;
+
+                    NetworkStream tcpStream = client.GetStream();
+
+                    TcpWrite(tcpStream, data);
+                    string messageFromServer = TcpRead(tcpStream);
+
+                    if (messageFromServer == "Successful_Operation")
+                    {
+                        Console.WriteLine("Användare med namnet '{0}' har skapats.", name);
+                    } else
+                    {
+                        Console.WriteLine("Skapandet misslyckades.");
+                    }
+                    return;
+                } catch
+                {
+                    Console.WriteLine("Felaktigt input. Försök igen.");
+                    Console.WriteLine("");
+                    continue;
+                }
             }
+
         }
+
+        // Läs in och skriv ut alla existerande användare
         static void ReadUsers(TcpClient client)
         {
             // Skicka till servern att alla användare ska skickas tillbaka.
             // Servern kollar i XMl.
             NetworkStream tcpStream = client.GetStream();
 
-            string clientMessage = TcpWrite(tcpStream, "3");
-            Console.WriteLine("Klient: {0}", clientMessage);
-
-            if (clientMessage != "Servern har tagit emot din förfrågan.") return;
-
+            TcpWrite(tcpStream, "3");
             string serverMessage = TcpRead(tcpStream);
+
+            if (serverMessage == "no_users")
+            {
+                Console.WriteLine("Det finns inga sparande användare.");
+                return;
+            }
 
             // Dela upp strängen efter en breakpoint så att vi kan
             // få ut användarna.
@@ -557,26 +558,39 @@ namespace Client
                 Console.WriteLine("Personnummer: {0}", ssn);
                 Console.WriteLine("----------------------------");
             }
-            // Användare väljer ett alternativ
-            Console.WriteLine("1. Radera användare.");
-            Console.WriteLine("2. Gå tillbaka.");
-            Console.WriteLine("");
-            Console.Write("Vad vill du göra 1: ");
 
-            int option = int.Parse(Console.ReadLine());
-
-            switch (option)
+            while (true)
             {
-                case 1:
-                    DeleteUser(client);
-                    break;
-                case 2:
-                    break;
-                default:
-                    Console.WriteLine("Kunde inte läsa ditt val 1. Försök igen.");
+                try
+                {
+                    // Användare väljer ett alternativ
+                    Console.WriteLine("1. Radera användare.");
+                    Console.WriteLine("2. Gå tillbaka.");
                     Console.WriteLine("");
-                    break;
+                    Console.Write("Vad vill du göra: ");
+                    int option = int.Parse(Console.ReadLine());
+
+                    switch (option)
+                    {
+                        case 1:
+                            DeleteUser(client);
+                            break;
+                        case 2:
+                            return;
+                        default:
+                            Console.WriteLine("Kunde inte läsa ditt val. Försök igen.");
+                            Console.WriteLine("");
+                            break;
+                    }
+
+                } catch
+                {
+                    Console.WriteLine("Kunde inte läsa ditt val. Försök igen.");
+                    Console.WriteLine("");
+                    continue;
+                }
             }
+
         }
     }
 }

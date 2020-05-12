@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Runtime.Serialization;
 
 namespace Server
@@ -21,15 +19,14 @@ namespace Server
         {
             this.name = name;
             this.socialSecurityNumber = socialSecurityNumber;
-            this.accounts.Add(new SavingsAccount("Savings Account"));
+            this.accounts.Add(new SavingsAccount("Sparkonto"));
         }
 
         public List<Account> Accounts
         {
             get { return accounts; }
         }
-
-
+        // Hämta ett konto med kontonummer, t. ex user["123456789"]
         public Account this[string number] => FindAccountByNumber(number);
 
         private Account FindAccountByNumber(string number)
@@ -59,6 +56,7 @@ namespace Server
             }
         }
 
+        // Radera konto
         public void DeleteAccount (string accountNumber)
         {
             for (int i = 0; i < accounts.Count; i++)
@@ -69,6 +67,8 @@ namespace Server
                 }
             }
         }
+
+        // Skapa konto
         public void CreateAccount(string accountType, string name)
         {
            if (accountType == "SavingsAccount")
